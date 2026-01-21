@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIMULATEUR : PROLONGATION VITALE & CONSÉQUENCES</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #050608;
+            --panel-bg: rgba(10, 15, 20, 0.9);
+            --neon-blue: #00f3ff;
+            --neon-green: #0aff60;
+            --neon-purple: #bc13fe;
+            --neon-red: #ff2a6d;
+            --neon-yellow: #ffee00;
+            --text-color: #cfd8dc;
+            --font-tech: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-tech);
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            height: 100vh;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 360px 1fr 340px;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Barre latérale */
+        .sidebar {
+            background: var(--panel-bg);
+            border-right: 1px solid #333;
+            border-left: 1px solid #333;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+
+        h2 {
+            font-size: 14px;
+            color: #fff;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 5px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        h2.bio-title {
+            border-color: var(--neon-green);
+            color: var(--neon-green);
+            text-shadow: 0 0 10px rgba(10, 255, 96, 0.2);
+        }
+
+        h2.risk-title {
+            border-color: var(--neon-red);
+            color: var(--neon-red);
+            text-shadow: 0 0 10px rgba(255, 42, 109, 0.2);
+        }
+
+        /* Contrôles */
+        .control-group {
+            margin-bottom: 15px;
+            background: rgba(255,255,255,0.03);
+            padding: 10px;
+            border-radius: 4px;
+            border-left: 2px solid transparent;
+            transition: 0.3s;
+        }
+
+        .control-group:hover {
+            border-left: 2px solid var(--neon-blue);
+            background: rgba(255,255,255,0.05);
+        }
+
+        label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            margin-bottom: 8px;
+            color: #ccc;
+            font-weight: 500;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            background: #444;
+            border-radius: 2px;
+            -webkit-appearance: none;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: var(--neon-blue);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .risk-slider::-webkit-slider-thumb { background: var(--neon-red); box-shadow: 0 0 5px var(--neon-red); }
+        .life-slider::-webkit-slider-thumb { background: var(--neon-green); box-shadow: 0 0 5px var(--neon-green); }
+
+        .val-display { font-family: monospace; color: #fff; font-weight: bold; }
+        .desc-text { font-size: 11px; color: #888; margin-top: 5px; line-height: 1.3; }
+
+        /* Boutons */
+        button {
+            width: 100%;
+            padding: 12px;
+            background: transparent;
+            border: 1px solid var(--neon-blue);
+            color: var(--neon-blue);
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            font-size: 12px;
+        }
+
+        button:hover {
+            background: var(--neon-blue);
+            color: #000;
+            box-shadow: 0 0 20px var(--neon-blue);
+        }
+
+        /* Zone centrale */
+        #viewport {
+            position: relative;
+            background: radial-gradient(circle at center, #111520 0%, #000 100%);
+            overflow: hidden;
+        }
+
+        .hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+        }
+
+        .hud-stat {
+            font-size: 14px;
+            margin-bottom: 5px;
+            text-shadow: 0 0 2px black;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+
+        #emergency-alert {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 42, 109, 0.2);
+            border: 1px solid var(--neon-red);
+            color: var(--neon-red);
+            padding: 10px 20px;
+            font-weight: bold;
+            display: none;
+            animation: blink 1s infinite;
+            text-align: center;
+        }
+
+        @keyframes blink { 50% { opacity: 0.5; } }
+
+    </style>
+</head>
+<body>
+
+<div class="layout">
+    <!-- Gauche : Panneau de Contrôle -->
+    <div class="sidebar">
+        <h2 class="bio-title">Interventions Biologiques</h2>
+        <div class="desc-text" style="margin-bottom:15px;">
+            Ajustez les technologies pour moduler l'équilibre entre dommages et réparations cellulaires.
+        </div>
+
+        <div class="control-group">
+            <label>
+                <span>Potentiel Vital (Limite Biologique)</span>
+                <span class="val-display" id="disp-potential">80</span> ans
+            </label>
+            <input type="range" class="life-slider" id="in-potential" min="60" max="150" value="80">
+            <div class="desc-text">Repousse la limite théorique de la mort (action sur les télomères).</div>
+        </div>
+
+        <div class="control-group">
+            <label>
+                <span>Capacité de Maintenance</span>
+                <span class="val-display" id="disp-maintenance">50</span>%
+            </label>
+            <input type="range" class="life-slider" id="in-maintenance" min="0" max="100" value="50">
+            <div class="desc-text">Vitesse de réparation des dommages accumulés (Thérapies sénolytiques).</div>
+        </div>
+
+        <h2 class="risk-title">Gestion des Effets Secondaires</h2>
+        <div class="desc-text" style="margin-bottom:15px;">
+            Prolonger la vie cellulaire augmente les risques de mutations et de défaillances systémiques.
+        </div>
+
+        <div class="control-group">
+            <label>
+                <span>Contrôle Oncologique (Cancer)</span>
+                <span class="val-display" id="disp-cancer-ctrl">50</span>%
+            </label>
+            <input type="range" class="risk-slider" id="in-cancer-ctrl" min="0" max="100" value="50">
+            <div class="desc-text">Capacité à détruire les cellules qui mutent suite à trop de divisions.</div>
+        </div>
+
+        <div class="control-group">
+            <label>
+                <span>Résilience Neuro-Cognitive</span>
+                <span class="val-display" id="disp-neuro">50</span>%
+            </label>
+            <input type="range" class="risk-slider" id="in-neuro" min="0" max="100" value="50">
+            <div class="desc-text">Empêche le cerveau de lâcher avant le corps (Alzheimer/Démence).</div>
+        </div>
+
+        <h2 style="border-color:#aaa; color:#aaa;">Société & Environnement</h2>
+        <div class="control-group">
+            <label>Taux de Natalité (Enfants/Femme) <span class="val-display" id="disp-fertility">2.5</span></label>
+            <input type="range" id="in-fertility" min="1.0" max="6.0" step="0.1" value="2.5">
+        </div>
+
+        <button id="btn-reset">RÉINITIALISER LA SIMULATION</button>
+        <button id="btn-pause">PAUSE / REPRENDRE</button>
+    </div>
+
+    <!-- Centre : Visualisation -->
+    <div id="viewport">
+        <canvas id="simCanvas"></canvas>
+        <div class="hud">
+            <h1 style="font-size:32px; margin:0; color:#fff; opacity:0.8;">ANNÉE : <span id="ui-year">2025</span></h1>
+            <div class="hud-stat" style="color:var(--neon-green)">
+                <span class="status-dot" style="background:var(--neon-green)"></span>Santé Globale Moyenne : <span id="stat-health">0</span>%
+            </div>
+            <div class="hud-stat" style="color:var(--neon-blue)">
+                <span class="status-dot" style="background:var(--neon-blue)"></span>Population Totale : <span id="stat-pop">0</span>
+            </div>
+            <div class="hud-stat" style="color:var(--neon-red); margin-top:10px; font-size:12px;">
+                <span class="status-dot" style="background:var(--neon-red)"></span>Décès Cancers/Neuro : <span id="stat-bad-death">0</span>/an
+            </div>
+        </div>
+        <div id="emergency-alert">
+            ⚠️ PROTOCOLE ARCHE ACTIVÉ ⚠️<br>
+            <span style="font-size:12px; font-weight:normal;">Population critique. Clonage d'urgence en cours.</span>
+        </div>
+    </div>
+
+    <!-- Droite : Analyse -->
+    <div class="sidebar">
+        <h2>Démographie en Temps Réel</h2>
+        <div style="height: 180px; margin-bottom: 20px;">
+            <canvas id="chart-pop"></canvas>
+        </div>
+
+        <h2>Causes de Mortalité</h2>
+        <div style="height: 180px;">
+            <canvas id="chart-causes"></canvas>
+        </div>
+        
+        <div style="margin-top:20px; font-size:12px; color:#aaa; background:rgba(0,0,0,0.3); padding:10px; border-radius:4px;">
+            <p><strong style="color:#fff;">Comprendre la simulation :</strong></p>
+            <ul style="padding-left:15px; margin:0;">
+                <li style="margin-bottom:5px;"><strong>Le piège de la longévité :</strong> Si vous augmentez le "Potentiel Vital" mais laissez le "Contrôle Oncologique" bas, la population mourra massivement de cancer vers 60-70 ans (boules rouges).</li>
+                <li style="margin-bottom:5px;"><strong>Dégénérescence :</strong> Une vie très longue sans "Résilience Neuro" crée des corps vivants mais des cerveaux morts (boules grises qui s'éteignent).</li>
+                <li><strong>Sénolytiques :</strong> Une haute "Maintenance" ralentit le passage du vert (jeune) au jaune (vieux).</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- Configuration Système ---
+    const CONFIG = {
+        potentialLife: 80,     // Limite biologique théorique
+        maintenance: 0.5,      // Efficacité réparation (0-1)
+        cancerControl: 0.5,    // Capacité à tuer les tumeurs (0-1)
+        neuroResilience: 0.5,  // Résistance cerveau (0-1)
+        
+        fertilityRate: 2.5,
+        baseAccidentRate: 0.004, // Accidents de la vie inévitables
+        
+        simSpeed: 1.0,
+        maxParticles: 1200,    // Limite soft (ralentissement natalité)
+        minSafePopulation: 20  // Seuil Arche
+    };
+
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let population = [];
+    let year = 2025;
+    let isPaused = false;
+    let deathsThisYear = { natural: 0, disease: 0 }; // Stats temporaires
+
+    // --- Classe Humain ---
+    class Human {
+        constructor(isClone = false) {
+            this.active = true;
+            this.age = isClone ? 18 : 0; // Les clones naissent adultes
+            
+            // Position physique
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            this.vx = (Math.random() - 0.5) * 0.5;
+            this.vy = (Math.random() - 0.5) * 0.5;
+
+            // État de santé
+            this.causeOfDeath = null; // 'natural', 'cancer', 'neuro', 'accident'
+        }
+
+        update(dt) {
+            if (!this.active) return;
+
+            // Mouvement
+            this.x += this.vx;
+            this.y += this.vy;
+            if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+            if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+
+            this.age += dt * CONFIG.simSpeed;
+            this.checkHealth(dt);
+        }
+
+        checkHealth(dt) {
+            // 1. Mort Accidentelle (Hasard pur)
+            if (Math.random() < CONFIG.baseAccidentRate * dt * CONFIG.simSpeed) {
+                this.die('accident');
+                return;
+            }
+
+            // 2. Limite Biologique (Le mur du temps)
+            if (this.age >= CONFIG.potentialLife) {
+                this.die('natural');
+                return;
+            }
+
+            // 3. Accumulation des dommages (Vieillissement)
+            // Plus la maintenance est haute, plus on reste "jeune" longtemps biologiquement
+            // On calcule un "Age Biologique" relatif
+            const biologicalStress = (this.age / CONFIG.potentialLife) * (1.5 - CONFIG.maintenance);
+
+            // --- Risque 1 : CANCER (Erreurs de division cellulaire) ---
+            // Le risque augmente avec l'âge ET avec la durée de vie totale (plus de divisions = plus d'erreurs)
+            // Si "Contrôle Oncologique" est bas, le cancer frappe fort dès l'âge moyen
+            let cancerRisk = 0.001; 
+            if (this.age > 40) {
+                // Le risque explose si on vit vieux sans protection
+                cancerRisk += (this.age / 1000) * (1.0 - CONFIG.cancerControl);
+            }
+            if (Math.random() < cancerRisk * dt * CONFIG.simSpeed) {
+                this.die('cancer');
+                return;
+            }
+
+            // --- Risque 2 : NEURO-DÉGÉNÉRESCENCE (Cerveau) ---
+            // Frappe principalement les très âgés (>80 ans)
+            if (this.age > 80) {
+                let neuroRisk = 0.05 * (1.0 - CONFIG.neuroResilience);
+                // Si on a poussé la vie à 120 ans mais neuroResilience est à 0, c'est l'hécatombe
+                if (this.age > 100) neuroRisk *= 5; 
+                
+                if (Math.random() < neuroRisk * dt * CONFIG.simSpeed) {
+                    this.die('neuro');
+                    return;
+                }
+            }
+        }
+
+        die(reason) {
+            this.active = false;
+            this.causeOfDeath = reason;
+            if (reason === 'cancer' || reason === 'neuro') deathsThisYear.disease++;
+            else deathsThisYear.natural++;
+        }
+
+        draw() {
+            if (!this.active) return;
+
+            let color, size, glow = 0;
+
+            // Code couleur intuitif basé sur l'âge relatif et la santé
+            const lifeProgress = this.age / CONFIG.potentialLife;
+
+            if (lifeProgress < 0.2) {
+                color = '#0aff60'; // Vert (Jeunesse / Croissance)
+                size = 2;
+            } else if (lifeProgress < 0.6) {
+                color = '#00f3ff'; // Bleu (Adulte stable)
+                size = 2.5;
+            } else if (lifeProgress < 0.85) {
+                color = '#ffee00'; // Jaune (Début sénescence)
+                size = 3;
+            } else {
+                color = '#ff2a6d'; // Rouge (Fin de vie / Fragilité)
+                size = 3;
+            }
+
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, size, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.shadowBlur = glow;
+            ctx.shadowColor = color;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    // --- Logique de Simulation ---
+
+    function init() {
+        population = [];
+        // Population initiale diversifiée
+        for (let i = 0; i < 400; i++) {
+            let p = new Human();
+            p.age = Math.random() * 50; // Âges variés
+            population.push(p);
+        }
+        
+        // Reset Graphs
+        chartPop.data.labels = [];
+        chartPop.data.datasets[0].data = [];
+        chartCauses.data.datasets[0].data = [0, 0, 0];
+        year = 2025;
+        
+        document.getElementById('emergency-alert').style.display = 'none';
+    }
+
+    function handleSociety(dt) {
+        const currentPop = population.length;
+        
+        // --- 1. PROTOCOLE ARCHE (Sécurité Anti-Extinction) ---
+        if (currentPop < CONFIG.minSafePopulation) {
+            document.getElementById('emergency-alert').style.display = 'block';
+            // Injection de clones adultes sains pour redémarrer
+            if (Math.random() < 0.2) { 
+                population.push(new Human(true));
+            }
+        } else {
+            document.getElementById('emergency-alert').style.display = 'none';
+        }
+
+        // --- 2. Reproduction Logistique (Plafond Souple) ---
+        // Plus on approche du max, moins on fait d'enfants
+        const spaceAvailable = Math.max(0, 1 - (currentPop / CONFIG.maxParticles));
+        if (spaceAvailable <= 0.05) return; // Trop peuplé
+
+        // Calcul des femmes en âge de procréer (simplifié : moitié de la pop 20-45 ans)
+        // Note : Si la maintenance est haute, la ménopause recule un peu
+        const menopauseAge = 45 + (CONFIG.maintenance * 10);
+        const fertilePop = population.filter(p => p.active && p.age >= 18 && p.age <= menopauseAge).length / 2;
+        
+        // Naissances = (Mères * Fertilité / DuréeFertilité) * Temps * EspaceDispo
+        const birthChance = (fertilePop * CONFIG.fertilityRate / 30) * dt * CONFIG.simSpeed * spaceAvailable;
+
+        let n = Math.floor(birthChance);
+        if (Math.random() < (birthChance - n)) n++;
+
+        for (let i = 0; i < n; i++) {
+            // Réutilisation de slot mémoire ou ajout
+            const deadIdx = population.findIndex(p => !p.active);
+            if (deadIdx !== -1) {
+                const p = population[deadIdx];
+                p.active = true;
+                p.age = 0;
+                p.x = Math.random() * canvas.width;
+                p.y = Math.random() * canvas.height;
+                p.causeOfDeath = null;
+            } else {
+                population.push(new Human());
+            }
+        }
+    }
+
+    // Boucle principale
+    function loop() {
+        if (!isPaused) {
+            // Effet de traînée technologique
+            ctx.fillStyle = 'rgba(5, 6, 8, 0.25)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            let activeCount = 0;
+            const dt = 0.1; // Pas de temps
+
+            population.forEach(p => {
+                if (p.active) {
+                    p.update(dt);
+                    p.draw();
+                    activeCount++;
+                }
+            });
+
+            handleSociety(dt);
+            year += dt * CONFIG.simSpeed;
+
+            // Mise à jour UI (fréquence moyenne)
+            if (Math.floor(year * 10) % 5 === 0) {
+                document.getElementById('ui-year').innerText = Math.floor(year);
+                document.getElementById('stat-pop').innerText = activeCount;
+                
+                // Santé moyenne (approximative basée sur maintenance)
+                let healthScore = Math.round(CONFIG.maintenance * 100);
+                document.getElementById('stat-health').innerText = healthScore;
+            }
+
+            // Mise à jour Graphiques (annuelle)
+            if (Math.floor(year) > Math.floor(year - dt * CONFIG.simSpeed)) {
+                updateCharts(activeCount);
+                // Reset stats annuelles
+                document.getElementById('stat-bad-death').innerText = deathsThisYear.disease;
+                deathsThisYear = { natural: 0, disease: 0 };
+            }
+        }
+        requestAnimationFrame(loop);
+    }
+
+    // --- Graphiques ---
+    let chartPop, chartCauses;
+
+    function initCharts() {
+        // Graphique Population
+        const ctx1 = document.getElementById('chart-pop').getContext('2d');
+        chartPop = new Chart(ctx1, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Population',
+                    data: [],
+                    borderColor: '#00f3ff',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.4,
+                    fill: true,
+                    backgroundColor: 'rgba(0, 243, 255, 0.1)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { display: false },
+                    y: { grid: { color: '#222' }, ticks: { color: '#666' } }
+                },
+                animation: false
+            }
+        });
+
+        // Graphique Causes Décès (Doughnut)
+        const ctx2 = document.getElementById('chart-causes').getContext('2d');
+        chartCauses = new Chart(ctx2, {
+            type: 'doughnut',
+            data: {
+                labels: ['Naturel/Âge', 'Cancer/Cellulaire', 'Neuro/Cerveau'],
+                datasets: [{
+                    data: [1, 0, 0], // Init dummy data
+                    backgroundColor: ['#0aff60', '#ff2a6d', '#bc13fe'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { 
+                    legend: { position: 'right', labels: { color: '#fff', font: { size: 10 } } } 
+                },
+                animation: false
+            }
+        });
+    }
+
+    function updateCharts(pop) {
+        // Update Line Chart
+        if (chartPop.data.labels.length > 50) {
+            chartPop.data.labels.shift();
+            chartPop.data.datasets[0].data.shift();
+        }
+        chartPop.data.labels.push(Math.floor(year));
+        chartPop.data.datasets[0].data.push(pop);
+        chartPop.update();
+
+        // Update Causes Chart (Accumulation globale ou snapshot annuel ?)
+        // On va faire un snapshot approximatif des tendances
+        // Pour simplifier, on utilise des compteurs globaux invisibles dans la boucle
+        // Ici on simule une répartition basée sur les paramètres actuels pour visualisation
+        let riskCancer = (1 - CONFIG.cancerControl) * 100;
+        let riskNeuro = (1 - CONFIG.neuroResilience) * 100;
+        let natural = 100; // Base
+        
+        // Normalisation simple pour l'affichage
+        chartCauses.data.datasets[0].data = [natural, riskCancer, riskNeuro];
+        chartCauses.update();
+    }
+
+    // --- Inputs ---
+    function bindInput(id, key, dispId, scale=1) {
+        document.getElementById(id).addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            // Conversion 0-100 slider vers 0.0-1.0 config
+            if (id.includes('maintenance') || id.includes('control') || id.includes('neuro') || id.includes('risk')) {
+                 CONFIG[key] = val / 100;
+                 if(dispId) document.getElementById(dispId).innerText = val;
+            } else {
+                 CONFIG[key] = val * scale;
+                 if(dispId) document.getElementById(dispId).innerText = val;
+            }
+        });
+    }
+
+    // Mapping des sliders
+    bindInput('in-potential', 'potentialLife', 'disp-potential');
+    bindInput('in-maintenance', 'maintenance', 'disp-maintenance'); // 0-100 -> 0.0-1.0
+    bindInput('in-cancer-ctrl', 'cancerControl', 'disp-cancer-ctrl'); // 0-100 -> 0.0-1.0
+    bindInput('in-neuro', 'neuroResilience', 'disp-neuro'); // 0-100 -> 0.0-1.0
+    bindInput('in-fertility', 'fertilityRate', 'disp-fertility');
+
+    document.getElementById('btn-reset').addEventListener('click', init);
+    document.getElementById('btn-pause').addEventListener('click', () => isPaused = !isPaused);
+
+    // Resize
+    window.addEventListener('resize', () => {
+        canvas.width = document.getElementById('viewport').offsetWidth;
+        canvas.height = document.getElementById('viewport').offsetHeight;
+    });
+    canvas.width = document.getElementById('viewport').offsetWidth;
+    canvas.height = document.getElementById('viewport').offsetHeight;
+
+    initCharts();
+    init();
+    loop();
+
+</script>
+</body>
+</html>
